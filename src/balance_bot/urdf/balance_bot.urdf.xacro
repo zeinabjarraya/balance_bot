@@ -1,0 +1,228 @@
+<?xml version="1.0"?>
+<robot name="balance_bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Constants -->
+  <xacro:property name="plate_length" value="0.22"/>
+  <xacro:property name="plate_width" value="0.0825"/>
+  <xacro:property name="plate_thickness" value="0.004"/>
+  <xacro:property name="wheel_radius" value="0.0325"/>
+  <xacro:property name="wheel_thickness" value="0.025"/>
+  <xacro:property name="motor_length" value="0.03"/>
+  <xacro:property name="shaft_length" value="0.02"/>
+  <xacro:property name="shaft_radius" value="0.008"/>
+  <xacro:property name="stick_radius" value="0.002"/> <!-- 4 mm diameter -->
+  <xacro:property name="stick_length" value="0.4"/>
+  <xacro:property name="wheel_diameter" value="${wheel_radius * 2}"/>
+
+  <!-- Base plate -->
+  <link name="base_plate">
+    <visual>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+      <origin xyz="0 0 0" />
+      <material name="Gray">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+      <origin xyz="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="2.8e-4" iyy="2.0e-3" izz="2.3e-3" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+<gazebo reference="base_plate">
+  <sensor type="imu" name="imu_sensor">
+    <always_on>true</always_on>
+    <update_rate>100.0</update_rate>
+    <visualize>true</visualize>
+    <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+      <robotNamespace>/balance_bot</robotNamespace>
+      <topicName>imu_data</topicName>
+      <frameName>base_plate</frameName>
+      <updateRateHZ>100.0</updateRateHZ>
+      <gaussianNoise>0.0001</gaussianNoise>
+      <xyzOffset>0 0 0.402</xyzOffset>
+      <rpyOffset>0 0 0</rpyOffset>
+    </plugin>
+  </sensor>
+</gazebo>
+
+
+  <!-- Middle plate -->
+  <link name="middle_plate">
+    <visual>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+      <material name="Gray">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="2.8e-4" iyy="2.0e-3" izz="2.3e-3" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+  <joint name="middle_plate_joint" type="fixed">
+    <parent link="base_plate"/>
+    <child link="middle_plate"/>
+    <origin xyz="0 0 ${stick_length/2}" />
+  </joint>
+
+  <!-- Top plate -->
+  <link name="top_plate">
+    <visual>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+      <material name="Gray">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="2.8e-4" iyy="2.0e-3" izz="2.3e-3" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+
+  </link>
+  <joint name="top_plate_joint" type="fixed">
+    <parent link="base_plate"/>
+    <child link="top_plate"/>
+    <origin xyz="0 0 ${stick_length}" />
+  </joint>
+
+  <!-- Sticks -->
+  <xacro:macro name="stick" params="name x y">
+    <link name="${name}">
+      <visual>
+        <geometry>
+          <cylinder radius="${stick_radius}" length="${stick_length}"/>
+        </geometry>
+        <origin rpy="0 0 0"/>
+        <material name="DarkGray">
+          <color rgba="0.3 0.3 0.3 1"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${stick_radius}" length="${stick_length}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1"/>
+        <inertia ixx="1.3e-3" iyy="1.3e-3" izz="2.0e-7" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_plate"/>
+      <child link="${name}"/>
+      <origin xyz="${x} ${y} ${stick_length/2}" />
+    </joint>
+  </xacro:macro>
+
+  <xacro:stick name="stick_fl" x="${plate_length/2 - stick_radius}" y="${plate_width/2 - stick_radius}"/>
+  <xacro:stick name="stick_fr" x="${plate_length/2 - stick_radius}" y="${-plate_width/2 + stick_radius}"/>
+  <xacro:stick name="stick_bl" x="${-plate_length/2 + stick_radius}" y="${plate_width/2 - stick_radius}"/>
+  <xacro:stick name="stick_br" x="${-plate_length/2 + stick_radius}" y="${-plate_width/2 + stick_radius}"/>
+
+  <!-- Motors and wheels (no mount) -->
+  <xacro:macro name="motor_assembly" params="side x_pos shaft_dir">
+    <xacro:property name="shaft_offset" value="${shaft_dir * (motor_length/2 + shaft_length/2)}"/>
+    <xacro:property name="wheel_offset" value="${shaft_dir * (shaft_length/2 + wheel_thickness/2)}"/>
+
+    <link name="${side}_motor">
+      <visual>
+        <geometry>
+          <cylinder radius="0.015" length="${motor_length}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="0.015" length="${motor_length}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </collision>
+      <inertial>
+        <mass value="0.2"/>
+        <inertia ixx="2.6e-5" iyy="2.6e-5" izz="2.3e-5" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <joint name="${side}_motor_joint" type="fixed">
+      <parent link="base_plate"/>
+      <child link="${side}_motor"/>
+      <origin xyz="${x_pos} 0 ${-plate_thickness/2 - 0.005}"/> <!-- previous mount height -->
+    </joint>
+
+    <link name="${side}_shaft">
+      <visual>
+        <geometry>
+          <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </collision>
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="2.5e-6" iyy="2.5e-6" izz="1.6e-6" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <joint name="${side}_shaft_joint" type="revolute">
+      <parent link="${side}_motor"/>
+      <child link="${side}_shaft"/>
+      <origin xyz="${shaft_offset} 0 0"/>
+      <axis xyz="1 0 0"/>
+      <limit effort="5" velocity="10"/>
+    </joint>
+
+    <link name="${side}_wheel">
+      <visual>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+        </geometry>
+        <origin rpy="0 1.5708 0"/>
+      </collision>
+      <inertial>
+        <mass value="0.2"/>
+        <inertia ixx="6.3e-5" iyy="6.3e-5" izz="1.1e-4" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <joint name="${side}_wheel_joint" type="continuous">
+      <parent link="${side}_shaft"/>
+      <child link="${side}_wheel"/>
+      <origin xyz="${wheel_offset} 0 0"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:motor_assembly side="left" x_pos="${plate_length/2}" shaft_dir="1"/>
+  <xacro:motor_assembly side="right" x_pos="${-plate_length/2}" shaft_dir="-1"/>
+
+</robot>

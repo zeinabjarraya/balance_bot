@@ -1,0 +1,29 @@
+<launch>
+  <arg name="paused" default="false"/> <!-- Start unpaused -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="true"/> <!-- Enable Gazebo GUI -->
+
+  <param name="use_sim_time" value="$(arg use_sim_time)"/>
+
+  <!-- Launch Gazebo with empty world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="gui" value="$(arg gui)"/>
+  </include>
+
+  <!-- Load robot description -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find balance_bot)/urdf/balance_bot.urdf.xacro'" />
+
+  <!-- Spawn robot -->
+  <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf"
+        args="-param robot_description -urdf -model balance_bot -x 0 -y 0 -z 0.1"
+        output="screen"/>
+  <!-- IMU plugin params (applies to libgazebo_ros_imu_sensor.so) -->
+  <rosparam>
+    balance_bot/imu_plugin/updateRateHz: 100.0
+    balance_bot/imu_plugin/gaussianNoise: 0.0001
+    balance_bot/imu_plugin/xyzOffset: [0, 0, 0.402]
+    balance_bot/imu_plugin/rpyOffset: [0, 0, 0]
+  </rosparam>
+</launch>
