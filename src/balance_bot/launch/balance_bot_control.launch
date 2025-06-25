@@ -1,0 +1,10 @@
+<launch>
+  
+    <param name="robot_description" command="$(find xacro)/xacro '$(find balance_bot)/urdf/balance_bot.urdf.xacro'" />
+    <rosparam file="$(find balance_bot)/config/balance_bot_controllers.yaml" command="load"/>
+
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+          output="screen"
+          args="joint_state_controller left_wheel_effort_controller right_wheel_effort_controller"/>
+  
+</launch>
