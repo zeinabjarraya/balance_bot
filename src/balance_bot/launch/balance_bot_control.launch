@@ -6,5 +6,14 @@
     <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
           output="screen"
           args="joint_state_controller left_wheel_effort_controller right_wheel_effort_controller"/>
+<!-- Start PID balance controller node -->
+  <node pkg="balance_bot" type="pid_balance.py" name="pid_balance_controller" output="screen">
+    <param name="alpha" value="0.98" />
+<param name="kp" value="30.0" />
+<param name="ki" value="1.0" />
+<param name="kd" value="7.0" />
+<param name="kp_vel" value="0.1" />
+<param name="max_effort" value="20.0" />
+  </node>
   
 </launch>

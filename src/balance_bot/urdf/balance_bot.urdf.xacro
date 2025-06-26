@@ -153,26 +153,30 @@
 
   <!-- Wheels directly attached to base_plate at motor ends -->
   <link name="left_wheel">
-    <visual>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.2"/>
-      <inertia ixx="6.3e-5" iyy="6.3e-5" izz="1.1e-4" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-<gazebo>
-  <static>false</static>
-</gazebo>
-  </link>
+  <visual>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </collision>
+  <inertial>
+    <mass value="0.2"/>
+    <inertia ixx="6.3e-5" iyy="6.3e-5" izz="1.1e-4" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+  <gazebo>
+    <static>false</static>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>100000</kp>
+    <kd>1</kd>
+  </gazebo>
+</link>
   <joint name="left_wheel_joint" type="continuous">
     <parent link="base_plate"/>
     <child link="left_wheel"/>
@@ -180,28 +184,31 @@
     <axis xyz="1 0 0"/>
     <dynamics damping="0.1"/>
   </joint>
-
   <link name="right_wheel">
-    <visual>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.2"/>
-      <inertia ixx="6.3e-5" iyy="6.3e-5" izz="1.1e-4" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-<gazebo>
-  <static>false</static>
-</gazebo>
-  </link>
+  <visual>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </collision>
+  <inertial>
+    <mass value="0.2"/>
+    <inertia ixx="6.3e-5" iyy="6.3e-5" izz="1.1e-4" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+  <gazebo>
+    <static>false</static>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>100000</kp>
+    <kd>1</kd>
+  </gazebo>
+</link>
   <joint name="right_wheel_joint" type="continuous">
     <parent link="base_plate"/>
     <child link="right_wheel"/>
@@ -236,5 +243,8 @@
   <gazebo>
     <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so"/>
   </gazebo>
+<gazebo reference="base_plate">
+  <pose>0 0 ${wheel_radius} 0 0 0</pose>
+</gazebo>
 
 </robot>
