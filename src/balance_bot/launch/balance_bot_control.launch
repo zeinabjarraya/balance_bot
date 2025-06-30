@@ -1,19 +1,37 @@
+<!-- ============================== -->
+<!-- Balance Bot Cascade Controller -->
+<!-- ============================== -->
+
 <launch>
-  
-    <param name="robot_description" command="$(find xacro)/xacro '$(find balance_bot)/urdf/balance_bot.urdf.xacro'" />
+ <param name="robot_description" command="$(find xacro)/xacro '$(find balance_bot)/urdf/balance_bot.urdf.xacro'" />
     <rosparam file="$(find balance_bot)/config/balance_bot_controllers.yaml" command="load"/>
 
     <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
           output="screen"
           args="joint_state_controller left_wheel_effort_controller right_wheel_effort_controller"/>
-<!-- Start PID balance controller node -->
-  <node pkg="balance_bot" type="pid_balance.py" name="pid_balance_controller" output="screen">
+  <!-- ======== Start Cascade PID Node ======== -->
+  <node name="cascade_pid_balance_controller"
+        pkg="balance_bot" type="pid_balance.py" output="screen">
+
+    <!-- IMU complementary filter -->
     <param name="alpha" value="0.98" />
-<param name="kp" value="30.0" />
-<param name="ki" value="1.0" />
-<param name="kd" value="7.0" />
-<param name="kp_vel" value="0.1" />
-<param name="max_effort" value="20.0" />
+
+    <!-- Inner Pitch PID -->
+    <param name="kp" value="30.0" />
+    <param name="ki" value="1.0" />
+    <param name="kd" value="7.0" />
+
+    <!-- Outer Position Loop -->
+    <param name="kp_pos" value="1.2" /> <!-- Gently pulls back to target -->
+    <param name="kd_pos" value="0.8" /> <!-- Damp position oscillation -->
+    <param name="ki_pos" value="0.1"/>
+    <!-- Max motor effort -->
+    <param name="max_effort" value="30.0" />
+
   </node>
-  
+
+  <!-- ======== Optional: Plot Odometry ======== -->
+  <node pkg="rqt_plot" type="rqt_plot" name="odom_plot"
+        args="/odom/pose/pose/position/x /odom/twist/twist/linear/x" />
+
 </launch>

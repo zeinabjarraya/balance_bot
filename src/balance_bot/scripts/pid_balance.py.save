@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+import rospy
+from sensor_msgs.msg import Imu
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Float64
+import math
+import time
+import tf
+
+class EnhancedBalanceController:
+    def __init__(self):
+        rospy.init_node('enhanced_balance_controller')
+
+        # Complementary filter parameter
+        self.alpha = rospy.get_param("~alpha", 0.98)
+        self.pitch = 0.0
+        self.last_time = None
+
+        # Angle PID parameters (for balancing)
+        self.angle_kp = rospy.get_param("~angle_kp", 30.0)
+        self.angle_ki = rospy.get_param("~angle_ki", 1.0)
+        self.angle_kd = rospy.get_param("~angle_kd", 7.0)
+
+        # Position PID parameters (for staying in place)
+        self.pos_kp = rospy.get_param("~pos_kp", 1.0)
+        self.pos_kd = rospy.get_param("~pos_kd", 0.5)
+
+        # Velocity damping (to reduce oscillations)
+        self.vel_kd = rospy.get_param("~vel_kd", 0.3)
+
+        self.angle_integral = 0.0
+        self.last_angle_error = 0.0
+        self.last_position = 0.0
+        self.last_velocity = 0.0
+
+        # Max effort to limit motor commands
+        self.max_effort = rospy.get_param("~max_effort", 20.0)
+
+        # Subscribers and Publishers
+        self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        self.left_pub = rospy.Publisher('/left_wheel_effort_controller/command', Float64, queue_size=10)
+        self.right_pub = rospy.Publisher('/right_wheel_effort_controller/command', Float64, queue_size=10)
+
+    def normalize_angle(self, angle):
+        while angle > math.pi:
+            angle -= 2 * math.pi
+        while angle < -math.pi:
+            angle += 2 * math.pi
+        return angle
+
+    def odom_callback(self, msg):
+        # Get current position and velocity from odometry
+        self.current_position = msg.pose.pose.position.x
+        self.current_velocity = msg.twist.twist.linear.x
+
+    def imu_callback(self, msg):
+        current_time = time.time()
+        if self.last_time is None:
+            self.last_time = current_time
+            return
+        dt = current_time - self.last_time
+        self.last_time = current_time
+
+        # Extract gyro and acceleration data
+        pitch_rate_gyro = msg.angular_velocity.y  # radians/sec
+        acc_x = msg.linear_acceleration.x
+        acc_y = msg.linear_acceleration.y
+        acc_z = msg.linear_acceleration.z
+
+        # Complementary filter to estimate pitch angle (in radians)
+        pitch_acc = math.atan2(-acc_y, math.sqrt(acc_x**2 + acc_z**2))
+        pitch_pred = self.pitch + pitch_rate_gyro * dt
+        self.pitch = self.alpha * pitch_pred + (1 - self.alpha) * pitch_acc
+        self.pitch = self.normalize_angle(self.pitch)
+
+        # Calculate angle PID (balancing)
+        angle_error = 0.0 - self.pitch
+        self.angle_integral += angle_error * dt
+        angle_derivative = (angle_error - self.last_angle_error) / dt if dt > 0 else 0.0
+        self.last_angle_error = angle_error
+        
+        angle_effort = (self.angle_kp * angle_error + 
+                       self.angle_ki * self.angle_integral + 
+                       self.angle_kd * angle_derivative)
+
+        # Calculate position correction (stay in place)
+        try:
+            pos_error = 0.0 - self.current_position
+            pos_derivative = -self.current_velocity  # Negative because we want to counteract movement
+            pos_effort = self.pos_kp * pos_error + self.pos_kd * pos_derivative
+        except AttributeError:
+            pos_effort = 0.0  # No odometry data yet
+
+        # Combine efforts with different weights
+        total_effort = angle_effort + pos_effort * 0.3  # Position correction is secondary
+
+        # Add velocity damping to reduce oscillations
+        try:
+            velocity_damping = -self.vel_kd * self.current_velocity
+            total_effort += velocity_damping
+        except AttributeError:
+            pass
+
+        # Clamp effort to max limits
+        total_effort = max(min(total_effort, self.max_effort), -self.max_effort)
+
+        # Differential drive for position correction
+        # If we need to move back to origin, apply slightly different efforts
+        try:
+            if abs(pos_error) > 0.05:  # Only correct if position error is significant
+                correction_factor = min(1.0, abs(pos_error) * 2.0)
+                if pos_error > 0:
+                    # Need to move backward
+                    left_effort = total_effort * (1 + 0.1 * correction_factor)
+                    right_effort = total_effort * (1 - 0.1 * correction_factor)
+                else:
+                    # Need to move forward
+                    left_effort = total_effort * (1 - 0.1 * correction_factor)
+                    right_effort = total_effort * (1 + 0.1 * correction_factor)
+            else:
+                left_effort = right_effort = total_effort
+        except AttributeError:
+            left_effort = right_effort = total_effort
+
+        # Publish efforts to wheels
+        self.left_pub.publish(left_effort)
+        self.right_pub.publish(right_effort)
+
+        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}° | Effort: {total_effort:.3f} | Pos: {self.current_position if hasattr(self, 'current_position') else 0:.3f} | Vel: {self.current_velocity if hasattr(self, 'current_velocity') else 0:.3f}")
+
+    def run(self):
+        rospy.spin()
+
+if __name__ == "__main__":
+    try:
+        EnhancedBalanceController().run()
+    except rospy.ROSInterruptException:
+        pass
