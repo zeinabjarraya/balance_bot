@@ -17,16 +17,16 @@
     <param name="alpha" value="0.98" />
 
     <!-- Inner Pitch PID -->
-    <param name="kp" value="30.0" />
-    <param name="ki" value="1.0" />
-    <param name="kd" value="7.0" />
+    <param name="kp" value="50.0" />
+    <param name="ki" value="0.0" />
+    <param name="kd" value="10.0" />
 
     <!-- Outer Position Loop -->
-    <param name="kp_pos" value="1.2" /> <!-- Gently pulls back to target -->
-    <param name="kd_pos" value="0.8" /> <!-- Damp position oscillation -->
-    <param name="ki_pos" value="0.1"/>
+    <param name="kp_pos" value="0.0" /> <!-- Gently pulls back to target -->
+    <param name="kd_pos" value="0.0" /> <!-- Damp position oscillation -->
+    <param name="ki_pos" value="0.0"/>
     <!-- Max motor effort -->
-    <param name="max_effort" value="30.0" />
+    <param name="max_effort" value="4.0" />
 
   </node>
 

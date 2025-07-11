@@ -21,21 +21,19 @@ class CascadePIDBalanceBot:
         self.kd = rospy.get_param("~kd", 7.0)
 
         # Outer position loop
-        self.kp_pos = rospy.get_param("~kp_pos", 0.3)   # reduced
+        self.kp_pos = rospy.get_param("~kp_pos", 0.3)
         self.kd_pos = rospy.get_param("~kd_pos", 0.2)
-        self.ki_pos = rospy.get_param("~ki_pos", 0.05)  # small integral gain for position
+        self.ki_pos = rospy.get_param("~ki_pos", 0.05)
         self.integral_pos = 0.0
-        self.max_desired_pitch = math.radians(15)  # limit desired pitch to 15 degrees
+        self.max_desired_pitch = math.radians(10)  # limit desired pitch to ±15°
 
         self.integral = 0.0
         self.last_error = 0.0
 
         self.last_pos = 0.0
-
-        # Target position to hold
         self.target_pos = 0.0
 
-        self.max_effort = rospy.get_param("~max_effort", 20.0)
+        self.max_effort = rospy.get_param("~max_effort", 50.0)
 
         self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
         self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
@@ -61,7 +59,6 @@ class CascadePIDBalanceBot:
 
         self.current_pos = pos
         self.current_vel = vel
-
         self.last_pos = pos
 
     def imu_callback(self, msg):
@@ -82,25 +79,32 @@ class CascadePIDBalanceBot:
         self.pitch = self.alpha * pitch_pred + (1 - self.alpha) * pitch_acc
         self.pitch = self.normalize_angle(self.pitch)
 
-        # =====================
-        # OUTER POSITION LOOP
-        # =====================
-         # Position control (PID) with integral term
+	# OUTER POSITION LOOP with proper anti-windup
+	# =====================
         pos_error = self.target_pos - self.current_pos
-        if abs(pos_error) < 0.01:
+	# Deadzone to avoid hunting
+        if abs(pos_error) < 0.05:
             pos_error = 0.0
 
         vel_error = -self.current_vel
-        # Clamp velocity error for stability
         vel_error = max(min(vel_error, 1.0), -1.0)
 
-        # Integrate position error with anti-windup clamp
-        self.integral_pos += pos_error * dt
-        self.integral_pos = max(min(self.integral_pos, 5.0), -5.0)
+	# Compute PD part
+        pd_term = (self.kp_pos * pos_error) + (self.kd_pos * vel_error)
 
-        # Desired pitch from position PID
-        desired_pitch = (self.kp_pos * pos_error) + (self.kd_pos * vel_error) + (self.ki_pos * self.integral_pos)
+	# Predict what the output would be if you used the current integral
+        test_desired_pitch = pd_term + (self.ki_pos * self.integral_pos)
+
+	# If output is not saturated, integrate
+        if abs(test_desired_pitch) < self.max_desired_pitch:
+            self.integral_pos += pos_error * dt
+    		# Clamp the integral itself
+            self.integral_pos = max(min(self.integral_pos, 5.0), -5.0)
+	# Now compute the final desired_pitch with the possibly updated integral
+        desired_pitch = pd_term + (self.ki_pos * self.integral_pos)
+	# Clamp the output to its max allowed
         desired_pitch = max(min(desired_pitch, self.max_desired_pitch), -self.max_desired_pitch)
+
         # =====================
         # INNER PITCH PID
         # =====================
@@ -110,13 +114,11 @@ class CascadePIDBalanceBot:
         self.last_error = error
 
         effort = self.kp * error + self.ki * self.integral + self.kd * derivative
-
-        # Limit effort to motor capability
         effort = max(min(effort, self.max_effort), -self.max_effort)
 
-        # ================
+        # =====================
         # FAIL-SAFE
-        # ================
+        # =====================
         if abs(math.degrees(self.pitch)) > 45:
             self.integral = 0.0
             self.left_pub.publish(0.0)
@@ -127,7 +129,11 @@ class CascadePIDBalanceBot:
         self.left_pub.publish(effort)
         self.right_pub.publish(effort)
 
-        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, DesiredPitch: {math.degrees(desired_pitch):.2f}°, Effort: {effort:.2f}, X: {self.current_pos:.3f}, Vel: {self.current_vel:.3f}")
+        rospy.loginfo_throttle(1,
+            f"Pitch: {math.degrees(self.pitch):.2f}°, "
+            f"DesiredPitch: {math.degrees(desired_pitch):.2f}°, "
+            f"Effort: {effort:.2f}, X: {self.current_pos:.3f}, Vel: {self.current_vel:.3f}"
+        )
 
     def run(self):
         rospy.spin()
