@@ -19,7 +19,7 @@
 
   <!-- ======== SPAWN ROBOT IN GAZEBO ======== -->
   <node name="spawn_robot" pkg="gazebo_ros" type="spawn_model"
-      args="-urdf -param robot_description -model balance_bot -x 0 -y 0 -z 0.0415 -R 0 -P 0 -Y 0"
+      args="-urdf -param robot_description -model balance_bot -x 0 -y 0 -z 0.0395 -R 0 -P 0 -Y 0"
       output="screen" />
 
 
