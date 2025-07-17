@@ -1,6 +1,25 @@
 <?xml version="1.0"?>
 <robot name="balance_bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+
+<gazebo>
+    <physics type="ode">
+        <max_step_size>0.001</max_step_size>
+        <real_time_update_rate>1000</real_time_update_rate>
+        <solver_type>quick</solver_type>
+    </physics>
+</gazebo>
+
+  <!-- Material Definitions -->
+<material name="Gray">
+    <color rgba="0.7 0.7 0.7 1.0"/>
+</material>
+<material name="DarkGray">
+    <color rgba="0.3 0.3 0.3 1.0"/>
+</material>
+<material name="Silver">
+    <color rgba="0.8 0.8 0.8 1.0"/>
+</material>
   <!-- === Dimensions === -->
   <xacro:property name="plate_length" value="0.22"/>
   <xacro:property name="plate_width" value="0.08"/>
@@ -159,15 +178,19 @@
       <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
     </inertial>
   </link>
+<gazebo reference="left_wheel">
+    <mu1>2.0</mu1><mu2>2.0</mu2>
+    <kp>1e8</kp><kd>1000</kd>
+    <minDepth>0.001</minDepth>
+</gazebo>
 
-  <joint name="left_wheel_joint" type="continuous">
+<joint name="left_wheel_joint" type="continuous">
     <parent link="left_shaft"/>
     <child link="left_wheel"/>
-    <origin xyz="${shaft_length/2 + wheel_thickness/2} 0 0"/>
-    <axis xyz="1 0 0"/>
-    <dynamics damping="0.1"/>
-  </joint>
-
+    <origin xyz="0.0175 0 0" rpy="0 0 0"/>  <!-- shaft_length/2 + wheel_thickness/2 -->
+    <axis xyz="0 1 0"/>  <!-- Should be Y axis for wheels -->
+</joint>
+  
   <link name="right_wheel">
     <visual>
       <geometry>
@@ -186,15 +209,17 @@
       <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
     </inertial>
   </link>
-
-  <joint name="right_wheel_joint" type="continuous">
+<gazebo reference="right_wheel">
+    <mu1>2.0</mu1><mu2>2.0</mu2>
+    <kp>1e8</kp><kd>1000</kd>
+    <minDepth>0.001</minDepth>
+</gazebo>
+<joint name="right_wheel_joint" type="continuous">
     <parent link="right_shaft"/>
     <child link="right_wheel"/>
-    <origin xyz="${-shaft_length/2 - wheel_thickness/2} 0 0"/>
-    <axis xyz="1 0 0"/>
-    <dynamics damping="0.1"/>
-  </joint>
-
+    <origin xyz="-0.0175 0 0" rpy="0 0 0"/>  <!-- shaft_length/2 + wheel_thickness/2 -->
+    <axis xyz="0 1 0"/>  <!-- Should be Y axis for wheels -->
+</joint>
   <!-- === Middle Plate === -->
   <link name="middle_plate">
     <visual>
