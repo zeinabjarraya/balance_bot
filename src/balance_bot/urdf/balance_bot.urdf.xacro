@@ -33,25 +33,26 @@
   <xacro:property name="stick_radius" value="0.002"/>
   <xacro:property name="stick_length" value="0.2"/>
 
-  <!-- === Base Plate === -->
-  <link name="base_plate">
-    <visual>
-      <geometry>
-        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
-      </geometry>
-      <origin xyz="0 0 0"/>
-      <material name="Gray"/>
-    </visual>
-    <collision>
-      <geometry>
-        <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
-      </geometry>
-    </collision>
-    <inertial>
-      <mass value="1.0"/>
-      <inertia ixx="0.00054" iyy="0.0040" izz="0.0045" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-  </link>
+ <!-- === Base Plate === -->
+<link name="base_plate">
+  <visual>
+    <geometry>
+      <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+    </geometry>
+    <origin xyz="0 0 0"/>
+    <material name="Gray"/>
+  </visual>
+  <collision>
+    <geometry>
+      <box size="${plate_length} ${plate_width} ${plate_thickness}"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.3"/>
+    <inertia ixx="0.00016" iyy="0.00121" izz="0.00171" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+</link>
+
 
 <!-- === Motors === -->
   <link name="left_motor">
@@ -159,67 +160,73 @@
     <origin xyz="${-motor_length/2 - shaft_length/2} 0 0"/>
   </joint>
 
-  <!-- === Wheels === -->
-  <link name="left_wheel">
-    <visual>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.05"/>
-      <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-  </link>
+<!-- === UPDATED WHEELS === -->
+<link name="left_wheel">
+  <visual>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </collision>
+  <inertial>
+    <mass value="0.05"/>
+    <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+</link>
+
 <gazebo reference="left_wheel">
-    <mu1>2.0</mu1><mu2>2.0</mu2>
-    <kp>1e8</kp><kd>1000</kd>
-    <minDepth>0.001</minDepth>
+  <mu1>2.0</mu1><mu2>2.0</mu2>
+  <kp>1e6</kp><kd>1000</kd> <!-- Reduce for stability -->
+  <minDepth>0.001</minDepth>
 </gazebo>
 
 <joint name="left_wheel_joint" type="continuous">
-    <parent link="left_shaft"/>
-    <child link="left_wheel"/>
-    <origin xyz="0.0175 0 0" rpy="0 0 0"/>  <!-- shaft_length/2 + wheel_thickness/2 -->
-    <axis xyz="0 1 0"/>  <!-- Should be Y axis for wheels -->
+  <parent link="left_shaft"/>
+  <child link="left_wheel"/>
+  <!-- New offset: shaft_length/2 + wheel_thickness/2 -->
+  <origin xyz="${shaft_length/2 + wheel_thickness/2} 0 0"/>
+  <axis xyz="1 0 0"/>
 </joint>
-  
-  <link name="right_wheel">
-    <visual>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.05"/>
-      <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-  </link>
+
+
+<link name="right_wheel">
+  <visual>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+    </geometry>
+    <origin rpy="0 1.5708 0"/>
+  </collision>
+  <inertial>
+    <mass value="0.05"/>
+    <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+</link>
+
 <gazebo reference="right_wheel">
-    <mu1>2.0</mu1><mu2>2.0</mu2>
-    <kp>1e8</kp><kd>1000</kd>
-    <minDepth>0.001</minDepth>
+  <mu1>2.0</mu1><mu2>2.0</mu2>
+  <kp>1e6</kp><kd>1000</kd>
+  <minDepth>0.001</minDepth>
 </gazebo>
+
 <joint name="right_wheel_joint" type="continuous">
-    <parent link="right_shaft"/>
-    <child link="right_wheel"/>
-    <origin xyz="-0.0175 0 0" rpy="0 0 0"/>  <!-- shaft_length/2 + wheel_thickness/2 -->
-    <axis xyz="0 1 0"/>  <!-- Should be Y axis for wheels -->
+  <parent link="right_shaft"/>
+  <child link="right_wheel"/>
+  <origin xyz="${-shaft_length/2 - wheel_thickness/2} 0 0"/>
+  <axis xyz="1 0 0"/>
 </joint>
+
   <!-- === Middle Plate === -->
   <link name="middle_plate">
     <visual>
