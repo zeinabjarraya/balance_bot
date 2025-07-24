@@ -7,15 +7,17 @@ import time
 class IMUFilteredExtractor:
     def __init__(self):
         rospy.init_node('imu_filter_node', anonymous=True)
-
-        # Subscribe to IMU topic
-        self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
+        self.imu_sub = rospy.Subscriber('/balance_bot/imu_data',Imu,self.imu_callback,queue_size=200)
 
         # Complementary filter parameters
-        self.alpha = 0.98  # Adjust if needed (98% gyro, 2% accel)
+        self.alpha = 0.98  # Weight for gyro (tune as needed)
         self.last_time = None
         self.pitch = 0.0  # Filtered pitch angle
-def imu_callback(self, msg):
+
+    def imu_callback(self, msg):
+        self.latest_msg = msg
+
+    def imu_callback(self, msg):
         current_time = time.time()
         if self.last_time is None:
             self.last_time = current_time
@@ -28,24 +30,22 @@ def imu_callback(self, msg):
         acc_y = msg.linear_acceleration.y
         acc_z = msg.linear_acceleration.z
 
-        pitch_acc = math.atan2(-acc_y, math.sqrt(acc_x**2 + acc_z**2))
+        # Calculate pitch angle from accelerometer (radians)
+        pitch_acc = math.atan2(acc_y, math.sqrt(acc_x**2 + acc_z**2))
+
+        # Complementary filter to combine gyro and accel
         self.pitch = self.alpha * (self.pitch + pitch_rate_gyro * dt) + (1 - self.alpha) * pitch_acc
 
-        # PID controller on pitch angle (desired pitch = 0)
-        error = 0.0 - self.pitch
-        self.integral += error * dt
-        derivative = (error - self.last_error) / dt if dt > 0 else 0.0
-        self.last_error = error
+        # Log filtered pitch in degrees
+        pitch_deg = self.pitch * 180.0 / math.pi
+        rospy.loginfo_throttle(1, f"Filtered pitch: {pitch_deg:.2f} degrees")
 
-        effort = self.pid_p * error + self.pid_i * self.integral + self.pid_d * derivative
-
-        # Publish effort commands (both wheels same effort for balance)
-        self.effort_pub_left.publish(effort)
-        self.effort_pub_right.publish(effort)
-
-        rospy.loginfo_throttle(1, f"Pitch: {self.pitch:.3f} Effort: {effort:.3f}")
     def run(self):
-        rospy.spin()
+        rate = rospy.Rate(200)  # match IMU rate!
+        while not rospy.is_shutdown():
+            if self.latest_msg:
+                self.process_imu(self.latest_msg)
+            rate.sleep()
 
 if __name__ == '__main__':
     try:
