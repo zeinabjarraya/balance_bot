@@ -1,26 +1,7 @@
 <?xml version="1.0"?>
 <robot name="balance_bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-
-<gazebo>
-    <physics type="ode">
-        <max_step_size>0.001</max_step_size>
-        <real_time_update_rate>1000</real_time_update_rate>
-        <solver_type>quick</solver_type>
-    </physics>
-</gazebo>
-
-  <!-- Material Definitions -->
-<material name="Gray">
-    <color rgba="0.7 0.7 0.7 1.0"/>
-</material>
-<material name="DarkGray">
-    <color rgba="0.3 0.3 0.3 1.0"/>
-</material>
-<material name="Silver">
-    <color rgba="0.8 0.8 0.8 1.0"/>
-</material>
-  <!-- === Dimensions === -->
+<!-- === Dimensions === -->
   <xacro:property name="plate_length" value="0.22"/>
   <xacro:property name="plate_width" value="0.08"/>
   <xacro:property name="plate_thickness" value="0.004"/>
@@ -139,14 +120,14 @@
       <geometry>
         <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
       </geometry>
-      <origin rpy="0 1.5708 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
       <material name="Silver"/>
     </visual>
     <collision>
       <geometry>
         <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
       </geometry>
-      <origin rpy="0 1.5708 0"/>
+      <origin  xyz="0 0 0" rpy="0 1.5708 0"/>
     </collision>
     <inertial>
       <mass value="0.01"/>
@@ -161,18 +142,20 @@
   </joint>
 
 <!-- === UPDATED WHEELS === -->
+<!-- LEFT WHEEL LINK -->
 <link name="left_wheel">
   <visual>
     <geometry>
       <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
     </geometry>
-    <origin rpy="0 1.5708 0"/>
+    <origin xyz="0 0 0" rpy="0 1.5708 0"/> <!-- Centered geometry -->
+    <material name="DarkGray"/>
   </visual>
   <collision>
     <geometry>
       <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
     </geometry>
-    <origin rpy="0 1.5708 0"/>
+    <origin xyz="0 0 0" rpy="0 1.5708 0"/> <!-- Same as visual -->
   </collision>
   <inertial>
     <mass value="0.05"/>
@@ -180,33 +163,32 @@
   </inertial>
 </link>
 
-<gazebo reference="left_wheel">
-  <mu1>2.0</mu1><mu2>2.0</mu2>
-  <kp>1e6</kp><kd>1000</kd> <!-- Reduce for stability -->
-  <minDepth>0.001</minDepth>
-</gazebo>
-
+<!-- LEFT WHEEL JOINT -->
 <joint name="left_wheel_joint" type="continuous">
   <parent link="left_shaft"/>
   <child link="left_wheel"/>
-  <!-- New offset: shaft_length/2 + wheel_thickness/2 -->
-  <origin xyz="${shaft_length/2 + wheel_thickness/2} 0 0"/>
+  <!-- Position wheel center at shaft end -->
+  <origin xyz="${shaft_length/2 + wheel_thickness/2 + 0.001} 0 0" rpy="0 0 0"/>
   <axis xyz="1 0 0"/>
+<limit effort="1.0" velocity="100.0"/>
 </joint>
 
 
+
+<!-- RIGHT WHEEL LINK -->
 <link name="right_wheel">
   <visual>
     <geometry>
       <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
     </geometry>
-    <origin rpy="0 1.5708 0"/>
+    <origin xyz="0 0 0" rpy="0 1.5708 0"/> <!-- Centered geometry -->
+    <material name="DarkGray"/>
   </visual>
   <collision>
     <geometry>
       <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
     </geometry>
-    <origin rpy="0 1.5708 0"/>
+    <origin xyz="0 0 0" rpy="0 1.5708 0"/> <!-- Same as visual -->
   </collision>
   <inertial>
     <mass value="0.05"/>
@@ -214,17 +196,14 @@
   </inertial>
 </link>
 
-<gazebo reference="right_wheel">
-  <mu1>2.0</mu1><mu2>2.0</mu2>
-  <kp>1e6</kp><kd>1000</kd>
-  <minDepth>0.001</minDepth>
-</gazebo>
-
+<!-- RIGHT WHEEL JOINT -->
 <joint name="right_wheel_joint" type="continuous">
   <parent link="right_shaft"/>
   <child link="right_wheel"/>
-  <origin xyz="${-shaft_length/2 - wheel_thickness/2} 0 0"/>
+  <!-- Position wheel center at shaft end (negative direction) -->
+  <origin xyz="${-(shaft_length/2 + wheel_thickness/2 + 0.001)} 0 0" rpy="0 0 0"/>
   <axis xyz="1 0 0"/>
+<limit effort="1.0" velocity="100.0"/>
 </joint>
 
   <!-- === Middle Plate === -->
