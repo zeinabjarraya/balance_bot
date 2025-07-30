@@ -3,88 +3,113 @@ import rospy
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float64
 import math
-import time
 
-class PIDBalanceNode:
-    def __init__(self):
-        rospy.init_node('pid_balance_node', anonymous=True)
+# === PID Constants (Start Safe) ===
+Kp = 30.0
+Ki = 0.0
+Kd = 0.0
 
-        # Subscribers
-        self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
+# === Effort Limits ===
+MAX_EFFORT = 10.0  # You can increase after testing
 
-        # Publishers for wheel effort commands
-        self.effort_pub_left = rospy.Publisher('/left_wheel_effort_controller/command', Float64, queue_size=10)
-        self.effort_pub_right = rospy.Publisher('/right_wheel_effort_controller/command', Float64, queue_size=10)
+# === Pitch Correction ===
+DESIRED_PITCH = 0.0  # degrees
+PITCH_OFFSET = 0.0   # use if upright is not 0°
 
-        # PID parameters
-        self.kp = 1.0
-        self.ki = 0.0
-        self.kd = 0.0
+# === Complementary Filter Constant ===
+alpha = 0.98  # Trust gyro more
 
-        self.max_effort = 1.0  # Motor effort limits
+# === Global Variables ===
+pitch = 0.0
+previous_time = None
+integral = 0.0
+previous_error = 0.0
 
-        # PID state
-        self.integral = 0.0
-        self.last_error = 0.0
-        self.last_time = None
+# For filtering derivative spikes
+DERIVATIVE_CLAMP = 100.0  # Max absolute value for derivative term
 
-        # Complementary filter for pitch
-        self.alpha = 0.98
-        self.pitch = 0.0
+# Anti-windup limits for integral
+INTEGRAL_MAX = 10.0
+INTEGRAL_MIN = -10.0
 
-    def imu_callback(self, msg):
-        current_time = time.time()
-        if self.last_time is None:
-            self.last_time = current_time
-            return
-        dt = current_time - self.last_time
-        if dt <= 0:
-            return
-        self.last_time = current_time
+# Publishers
+left_pub = None
+right_pub = None
 
-        # Gyro and accelerometer readings
-        pitch_rate_gyro = msg.angular_velocity.y
-        acc_x = msg.linear_acceleration.x
-        acc_y = msg.linear_acceleration.y
-        acc_z = msg.linear_acceleration.z
+def imu_callback(data):
+    global pitch, previous_time, integral, previous_error
 
-        # Calculate pitch angle from accelerometer
-        pitch_acc = math.atan2(acc_y, math.sqrt(acc_x**2 + acc_z**2))
+    current_time = rospy.Time.now()
+    if previous_time is None:
+        previous_time = current_time
+        return
+    dt = (current_time - previous_time).to_sec()
+    previous_time = current_time
 
-        # Complementary filter to combine gyro and accel
-        self.pitch = self.alpha * (self.pitch + pitch_rate_gyro * dt) + (1 - self.alpha) * pitch_acc
+    # === IMU Data ===
+    acc_x = data.linear_acceleration.x
+    acc_y = data.linear_acceleration.y
+    acc_z = data.linear_acceleration.z
 
-        # PID control
-        error = 0.0 - self.pitch
+    # === Pitch from Accelerometer (correct axis config: Y forward, Z up) ===
+    pitch_acc = math.degrees(math.atan2(acc_y, math.sqrt(acc_x**2 + acc_z**2)))
 
-        # Deadband for small error to avoid jitter
-        if abs(error) < 0.005:  # ~0.3 degrees
-            error = 0.0
+    # === Gyro integration (gyro_y in rad/s) ===
+    gyro_y = data.angular_velocity.y
+    pitch_gyro = pitch + math.degrees(gyro_y * dt)
 
-        self.integral += error * dt
+    # === Complementary Filter ===
+    pitch = alpha * pitch_gyro + (1 - alpha) * pitch_acc
+    pitch += PITCH_OFFSET
 
-        # Derivative disabled for now to avoid noise issues
-        derivative = 0.0
+    # === PID Calculation ===
+    error = DESIRED_PITCH - pitch
+    
+    # Anti-windup on integral term
+    integral += error * dt
+    if integral > INTEGRAL_MAX:
+        integral = INTEGRAL_MAX
+    elif integral < INTEGRAL_MIN:
+        integral = INTEGRAL_MIN
 
-        effort = self.kp * error + self.ki * self.integral + self.kd * derivative
+    derivative_raw = (error - previous_error) / dt if dt > 0 else 0.0
+    
+    # Clamp derivative to avoid spikes
+    if derivative_raw > DERIVATIVE_CLAMP:
+        derivative = DERIVATIVE_CLAMP
+    elif derivative_raw < -DERIVATIVE_CLAMP:
+        derivative = -DERIVATIVE_CLAMP
+    else:
+        derivative = derivative_raw
 
-        # Clamp effort to motor limits [-1, 1]
-        effort = max(min(effort, self.max_effort), -self.max_effort)
+    previous_error = error
 
-        # Publish the same effort to both wheels
-        self.effort_pub_left.publish(Float64(effort))
-        self.effort_pub_right.publish(Float64(effort))
+    # === Raw Effort ===
+    effort = Kp * error + Ki * integral + Kd * derivative
 
-        # Log info
-        pitch_deg = self.pitch * 180.0 / math.pi
-        rospy.loginfo_throttle(1, f"Pitch: {pitch_deg:.2f}° | Effort: {effort:.2f}")
+    # === Clip Effort ===
+    effort = max(min(effort, MAX_EFFORT), -MAX_EFFORT)
 
-    def run(self):
-        rospy.spin()
+    # === Optional Invert Direction ===
+    # effort = -effort  # Uncomment if robot moves wrong direction when tilting
 
-if __name__ == '__main__':
-    try:
-        node = PIDBalanceNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    # === Publish Effort ===
+    left_pub.publish(effort)
+    right_pub.publish(effort)
+
+    rospy.loginfo(f"Pitch: {pitch:.2f}°, Error: {error:.2f}, Effort: {effort:.2f}, dt: {dt:.2f}")
+
+def pid_balance_node():
+    global left_pub, right_pub
+
+    rospy.init_node('pid_balance')
+    rospy.Subscriber("/balance_bot/imu_data", Imu, imu_callback)
+
+    left_pub = rospy.Publisher("/left_wheel_effort_controller/command", Float64, queue_size=10)
+    right_pub = rospy.Publisher("/right_wheel_effort_controller/command", Float64, queue_size=10)
+
+    rospy.loginfo("✅ PID balance node running with complementary filter and tuned control logic.")
+    rospy.spin()
+
+if __name__ == "__main__":
+    pid_balance_node()

@@ -88,60 +88,8 @@
     <origin xyz="${-plate_length/2} 0 ${-plate_thickness/2 - motor_radius}"/>
   </joint>
 
-  <!-- === Shafts === -->
-  <link name="left_shaft">
-    <visual>
-      <geometry>
-        <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-      <material name="Silver"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
-      </geometry>
-      <origin rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.01"/>
-      <inertia ixx="1e-6" iyy="1e-6" izz="1e-6" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-  </link>
+<!-- Removed left_shaft and right_shaft links and joints -->
 
-  <joint name="left_shaft_joint" type="fixed">
-    <parent link="left_motor"/>
-    <child link="left_shaft"/>
-    <origin xyz="${motor_length/2 + shaft_length/2} 0 0"/>
-  </joint>
-
-  <link name="right_shaft">
-    <visual>
-      <geometry>
-        <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
-      </geometry>
-      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
-      <material name="Silver"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="${shaft_radius}" length="${shaft_length}"/>
-      </geometry>
-      <origin  xyz="0 0 0" rpy="0 1.5708 0"/>
-    </collision>
-    <inertial>
-      <mass value="0.01"/>
-      <inertia ixx="1e-6" iyy="1e-6" izz="1e-6" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-  </link>
-
-  <joint name="right_shaft_joint" type="fixed">
-    <parent link="right_motor"/>
-    <child link="right_shaft"/>
-    <origin xyz="${-motor_length/2 - shaft_length/2} 0 0"/>
-  </joint>
-
-<!-- === UPDATED WHEELS === -->
 <!-- LEFT WHEEL LINK -->
 <link name="left_wheel">
   <visual>
@@ -159,26 +107,29 @@
   </collision>
   <inertial>
     <mass value="0.05"/>
-    <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
+    <inertia 
+      ixx="1.58e-5" 
+      iyy="1.58e-5" 
+      izz="2.64e-5" 
+      ixy="0" ixz="0" iyz="0"/>
   </inertial>
 </link>
-
-<!-- LEFT WHEEL JOINT -->
+<!-- LEFT WHEEL JOINT, now directly connected to left_motor -->
 <joint name="left_wheel_joint" type="continuous">
-  <parent link="left_shaft"/>
+  <parent link="left_motor"/>
   <child link="left_wheel"/>
-  <!-- Position wheel center at shaft end -->
-  <origin xyz="${shaft_length/2 + wheel_thickness/2 } 0 0" rpy="0 0 0"/>
+  <!-- Position wheel center at motor end -->
+  <origin xyz="${motor_length/2 + wheel_thickness/2 } 0 0" rpy="0 0 0"/>
   <axis xyz="1 0 0"/>
-<limit effort="1.0" velocity="20.0"/>
-<dynamics damping="0.01" friction="0.05"/>
+  <limit effort="100.0" velocity="100.0"/>
+  <dynamics damping="0.01" friction="0.05"/>
 </joint>
 <gazebo reference="left_wheel">
-  <mu1>1.0</mu1>
-  <mu2>1.0</mu2>
+  <mu1>2.0</mu1>
+  <mu2>2.0</mu2>
+  <kp>50000.0</kp>
+  <kd>10.0</kd>
 </gazebo>
-
-
 
 <!-- RIGHT WHEEL LINK -->
 <link name="right_wheel">
@@ -197,24 +148,30 @@
   </collision>
   <inertial>
     <mass value="0.05"/>
-    <inertia ixx="3.2e-6" iyy="3.2e-6" izz="6.4e-6" ixy="0" ixz="0" iyz="0"/>
+    <inertia 
+      ixx="1.58e-5" 
+      iyy="1.58e-5" 
+      izz="2.64e-5" 
+      ixy="0" ixz="0" iyz="0"/>
   </inertial>
 </link>
-
-<!-- RIGHT WHEEL JOINT -->
+<!-- RIGHT WHEEL JOINT, now directly connected to right_motor -->
 <joint name="right_wheel_joint" type="continuous">
-  <parent link="right_shaft"/>
+  <parent link="right_motor"/>
   <child link="right_wheel"/>
-  <!-- Position wheel center at shaft end (negative direction) -->
-  <origin xyz="${-(shaft_length/2 + wheel_thickness/2 )} 0 0" rpy="0 0 0"/>
+  <!-- Position wheel center at motor end (negative direction) -->
+  <origin xyz="${-(motor_length/2 + wheel_thickness/2) } 0 0" rpy="0 0 0"/>
   <axis xyz="1 0 0"/>
-<limit effort="1.0" velocity="20.0"/>
-<dynamics damping="0.01" friction="0.05"/>
+  <limit effort="100.0" velocity="100.0"/>
+  <dynamics damping="0.01" friction="0.05"/>
 </joint>
 <gazebo reference="right_wheel">
-  <mu1>1.0</mu1>
-  <mu2>1.0</mu2>
+  <mu1>2.0</mu1>
+  <mu2>2.0</mu2>
+  <kp>50000.0</kp>
+  <kd>10.0</kd>
 </gazebo>
+
 
   <!-- === Middle Plate === -->
   <link name="middle_plate">
@@ -328,7 +285,7 @@
 
   <gazebo>
     <plugin name="odometry_plugin" filename="libgazebo_ros_p3d.so">
-      <update_rate>200.0</update_rate>
+      <update_rate>100.0</update_rate>
       <bodyName>base_plate</bodyName>
       <topicName>odom</topicName>
       <gaussianNoise>0.0</gaussianNoise>
@@ -338,13 +295,13 @@
 <gazebo reference="imu_link">
   <sensor type="imu" name="imu_sensor">
     <always_on>true</always_on>
-    <update_rate>200.0</update_rate> <!-- Gazebo physics -->
+    <update_rate>100.0</update_rate> <!-- Gazebo physics -->
     <visualize>true</visualize>
     <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
       <robotNamespace>/balance_bot</robotNamespace>
       <topicName>imu_data</topicName>
       <frameName>imu_link</frameName>
-      <updateRateHZ>200.0</updateRateHZ> <!-- ROS plugin reads THIS -->
+      <updateRateHZ>100.0</updateRateHZ> <!-- ROS plugin reads THIS -->
       <gaussianNoise>0.0001</gaussianNoise>
       <xyzOffset>0 0 0</xyzOffset>
       <rpyOffset>0 0 0</rpyOffset>
@@ -355,7 +312,7 @@
 <joint name="imu_joint" type="fixed">
   <parent link="base_plate"/>
   <child link="imu_link"/>
-  <origin xyz="0 0 0.1" rpy="-1.5708 0 0"/>
+  <origin xyz="0 0 0.1" />
 </joint>
 
 </robot>
