@@ -1,4 +1,3 @@
-<!-- ============================== -->
 <!-- Balance Bot Cascade Controller -->
 <!-- ============================== -->
 
@@ -10,6 +9,6 @@
           output="screen"
           args="joint_state_controller left_wheel_effort_controller right_wheel_effort_controller"/>
 
-   <node name="pid_balance" pkg="balance_bot" type="pid_balance.py" output="screen" /> 
+   <node name="simple_balance_controller" pkg="balance_bot" type="pid_balance.py" output="screen" /> 
 
 </launch>

@@ -3,113 +3,87 @@ import rospy
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float64
 import math
+import time
 
-# === PID Constants (Start Safe) ===
-Kp = 30.0
-Ki = 0.0
-Kd = 0.0
+class SimpleBalanceBot:
+    def __init__(self):
+        rospy.init_node('simple_balance_controller')
 
-# === Effort Limits ===
-MAX_EFFORT = 10.0  # You can increase after testing
+        # Complementary filter parameter
+        self.alpha = rospy.get_param("~alpha", 0.98)
+        self.pitch = 0.0
+        self.last_time = None
 
-# === Pitch Correction ===
-DESIRED_PITCH = 0.0  # degrees
-PITCH_OFFSET = 0.0   # use if upright is not 0°
+        # PID constants
+        self.kp = rospy.get_param("~kp", 1.0)
+        self.ki = rospy.get_param("~ki", 0.0)
+        self.kd = rospy.get_param("~kd", 0.8)
+        self.integral = 0.0
+        self.last_error = 0.0
 
-# === Complementary Filter Constant ===
-alpha = 0.98  # Trust gyro more
+        self.max_effort = rospy.get_param("~max_effort", 10.0)
 
-# === Global Variables ===
-pitch = 0.0
-previous_time = None
-integral = 0.0
-previous_error = 0.0
+        self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
+        self.left_pub = rospy.Publisher('/left_wheel_effort_controller/command', Float64, queue_size=10)
+        self.right_pub = rospy.Publisher('/right_wheel_effort_controller/command', Float64, queue_size=10)
 
-# For filtering derivative spikes
-DERIVATIVE_CLAMP = 100.0  # Max absolute value for derivative term
+        rospy.loginfo("Simple inner-loop PID controller started.")
 
-# Anti-windup limits for integral
-INTEGRAL_MAX = 10.0
-INTEGRAL_MIN = -10.0
+    def normalize_angle(self, angle):
+        while angle > math.pi:
+            angle -= 2 * math.pi
+        while angle < -math.pi:
+            angle += 2 * math.pi
+        return angle
 
-# Publishers
-left_pub = None
-right_pub = None
+    def imu_callback(self, msg):
+        current_time = time.time()
+        if self.last_time is None:
+            self.last_time = current_time
+            return
 
-def imu_callback(data):
-    global pitch, previous_time, integral, previous_error
+        dt = current_time - self.last_time
+        self.last_time = current_time
 
-    current_time = rospy.Time.now()
-    if previous_time is None:
-        previous_time = current_time
-        return
-    dt = (current_time - previous_time).to_sec()
-    previous_time = current_time
+        gyro_y = msg.angular_velocity.x  # pitch rate
+        acc_x = msg.linear_acceleration.x
+        acc_y = msg.linear_acceleration.y
+        acc_z = msg.linear_acceleration.z
 
-    # === IMU Data ===
-    acc_x = data.linear_acceleration.x
-    acc_y = data.linear_acceleration.y
-    acc_z = data.linear_acceleration.z
+        pitch_acc = math.atan2(acc_y, math.sqrt(acc_x ** 2 + acc_z ** 2))
+        pitch_pred = self.pitch + gyro_y * dt
+        self.pitch = self.alpha * pitch_pred + (1 - self.alpha) * pitch_acc
+        self.pitch = self.normalize_angle(self.pitch)
 
-    # === Pitch from Accelerometer (correct axis config: Y forward, Z up) ===
-    pitch_acc = math.degrees(math.atan2(acc_y, math.sqrt(acc_x**2 + acc_z**2)))
+        # PID control
+        target_pitch = 0.0  # upright
+        error = target_pitch - self.pitch
+        self.integral += error * dt
+        derivative = (error - self.last_error) / dt if dt > 0 else 0.0
+        self.last_error = error
 
-    # === Gyro integration (gyro_y in rad/s) ===
-    gyro_y = data.angular_velocity.y
-    pitch_gyro = pitch + math.degrees(gyro_y * dt)
+        effort = self.kp * error + self.ki * self.integral + self.kd * derivative
+        effort = -effort
+        effort = max(min(effort, self.max_effort), -self.max_effort)
 
-    # === Complementary Filter ===
-    pitch = alpha * pitch_gyro + (1 - alpha) * pitch_acc
-    pitch += PITCH_OFFSET
+        # Safety cutoff
+        if abs(math.degrees(self.pitch)) > 45:
+            self.integral = 0.0
+            self.left_pub.publish(0.0)
+            self.right_pub.publish(0.0)
+            rospy.logwarn("Pitch out of range. Motors stopped.")
+            return
 
-    # === PID Calculation ===
-    error = DESIRED_PITCH - pitch
-    
-    # Anti-windup on integral term
-    integral += error * dt
-    if integral > INTEGRAL_MAX:
-        integral = INTEGRAL_MAX
-    elif integral < INTEGRAL_MIN:
-        integral = INTEGRAL_MIN
+        self.left_pub.publish(effort)
+        self.right_pub.publish(effort)
 
-    derivative_raw = (error - previous_error) / dt if dt > 0 else 0.0
-    
-    # Clamp derivative to avoid spikes
-    if derivative_raw > DERIVATIVE_CLAMP:
-        derivative = DERIVATIVE_CLAMP
-    elif derivative_raw < -DERIVATIVE_CLAMP:
-        derivative = -DERIVATIVE_CLAMP
-    else:
-        derivative = derivative_raw
+        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, Effort: {effort:.2f}")
 
-    previous_error = error
+    def run(self):
+        rospy.spin()
 
-    # === Raw Effort ===
-    effort = Kp * error + Ki * integral + Kd * derivative
-
-    # === Clip Effort ===
-    effort = max(min(effort, MAX_EFFORT), -MAX_EFFORT)
-
-    # === Optional Invert Direction ===
-    # effort = -effort  # Uncomment if robot moves wrong direction when tilting
-
-    # === Publish Effort ===
-    left_pub.publish(effort)
-    right_pub.publish(effort)
-
-    rospy.loginfo(f"Pitch: {pitch:.2f}°, Error: {error:.2f}, Effort: {effort:.2f}, dt: {dt:.2f}")
-
-def pid_balance_node():
-    global left_pub, right_pub
-
-    rospy.init_node('pid_balance')
-    rospy.Subscriber("/balance_bot/imu_data", Imu, imu_callback)
-
-    left_pub = rospy.Publisher("/left_wheel_effort_controller/command", Float64, queue_size=10)
-    right_pub = rospy.Publisher("/right_wheel_effort_controller/command", Float64, queue_size=10)
-
-    rospy.loginfo("✅ PID balance node running with complementary filter and tuned control logic.")
-    rospy.spin()
-
-if __name__ == "__main__":
-    pid_balance_node()
+if __name__ == '__main__':
+    try:
+        SimpleBalanceBot().run()
+    except rospy.ROSInterruptException:
+        pass
