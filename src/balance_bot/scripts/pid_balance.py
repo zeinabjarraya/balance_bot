@@ -15,14 +15,20 @@ class SimpleBalanceBot:
         self.last_time = None
 
         # PID constants
-        self.kp = rospy.get_param("~kp", 1.0)
-        self.ki = rospy.get_param("~ki", 0.0)
-        self.kd = rospy.get_param("~kd", 0.8)
+        self.kp = rospy.get_param("~kp", 12.0)
+        self.ki = rospy.get_param("~ki", 0.01)
+        self.kd = rospy.get_param("~kd", 0.07)
         self.integral = 0.0
         self.last_error = 0.0
+        self.filtered_derivative = 0.0
 
-        self.max_effort = rospy.get_param("~max_effort", 10.0)
+        # PID limits
+        self.max_effort = rospy.get_param("~max_effort", 4.0)
+        self.max_integral = rospy.get_param("~max_integral", 1.0)
+        self.deadband = rospy.get_param("~deadband", 0.05)
+        self.max_dt = rospy.get_param("~max_dt", 0.05)  # Limit dt to reduce derivative spikes
 
+        # ROS setup
         self.imu_sub = rospy.Subscriber('/balance_bot/imu_data', Imu, self.imu_callback)
         self.left_pub = rospy.Publisher('/left_wheel_effort_controller/command', Float64, queue_size=10)
         self.right_pub = rospy.Publisher('/right_wheel_effort_controller/command', Float64, queue_size=10)
@@ -43,8 +49,13 @@ class SimpleBalanceBot:
             return
 
         dt = current_time - self.last_time
+        rospy.loginfo_throttle(1, f"dt: {dt:.3f}")
         self.last_time = current_time
 
+        if dt > self.max_dt:
+            dt = self.max_dt
+
+        # IMU data
         gyro_y = msg.angular_velocity.x  # pitch rate
         acc_x = msg.linear_acceleration.x
         acc_y = msg.linear_acceleration.y
@@ -58,12 +69,23 @@ class SimpleBalanceBot:
         # PID control
         target_pitch = 0.0  # upright
         error = target_pitch - self.pitch
+
         self.integral += error * dt
+        self.integral = max(min(self.integral, self.max_integral), -self.max_integral)  # anti-windup
+
         derivative = (error - self.last_error) / dt if dt > 0 else 0.0
+        derivative = max(min(derivative, 3.0), -3.0)
+        self.filtered_derivative = 0.9 * self.filtered_derivative + 0.1 * derivative
         self.last_error = error
 
-        effort = self.kp * error + self.ki * self.integral + self.kd * derivative
+        effort = self.kp * error + self.ki * self.integral + self.kd * self.filtered_derivative
         effort = -effort
+
+        # Apply deadband
+        if abs(effort) < self.deadband:
+            effort = 0.0
+
+        # Clamp effort
         effort = max(min(effort, self.max_effort), -self.max_effort)
 
         # Safety cutoff
@@ -77,7 +99,7 @@ class SimpleBalanceBot:
         self.left_pub.publish(effort)
         self.right_pub.publish(effort)
 
-        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, Effort: {effort:.2f}")
+        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, Effort: {effort:.2f}, P: {self.kp * error:.2f}, D: {self.kd * derivative:.2f}, I: {self.ki * self.integral:.2f}")
 
     def run(self):
         rospy.spin()
