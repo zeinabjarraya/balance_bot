@@ -15,15 +15,15 @@ class SimpleBalanceBot:
         self.last_time = None
 
         # PID constants
-        self.kp = rospy.get_param("~kp", 12.0)
-        self.ki = rospy.get_param("~ki", 0.01)
-        self.kd = rospy.get_param("~kd", 0.07)
+        self.kp = rospy.get_param("~kp", 15.0)
+        self.ki = rospy.get_param("~ki", 0.00)
+        self.kd = rospy.get_param("~kd", 0.0)
         self.integral = 0.0
         self.last_error = 0.0
         self.filtered_derivative = 0.0
 
         # PID limits
-        self.max_effort = rospy.get_param("~max_effort", 4.0)
+        self.max_effort = rospy.get_param("~max_effort", 6.0)
         self.max_integral = rospy.get_param("~max_integral", 1.0)
         self.deadband = rospy.get_param("~deadband", 0.05)
         self.max_dt = rospy.get_param("~max_dt", 0.05)  # Limit dt to reduce derivative spikes
@@ -49,7 +49,7 @@ class SimpleBalanceBot:
             return
 
         dt = current_time - self.last_time
-        rospy.loginfo_throttle(1, f"dt: {dt:.3f}")
+        
         self.last_time = current_time
 
         if dt > self.max_dt:
@@ -70,22 +70,26 @@ class SimpleBalanceBot:
         target_pitch = 0.0  # upright
         error = target_pitch - self.pitch
 
+# Integral
         self.integral += error * dt
         self.integral = max(min(self.integral, self.max_integral), -self.max_integral)  # anti-windup
 
-        derivative = (error - self.last_error) / dt if dt > 0 else 0.0
-        derivative = max(min(derivative, 3.0), -3.0)
+# Derivative - use gyro_y directly
+        derivative = gyro_y
+        derivative = max(min(derivative, 3.0), -3.0)  # optional clamping
+
+# Optional: low-pass filter on derivative (keep if needed)
         self.filtered_derivative = 0.9 * self.filtered_derivative + 0.1 * derivative
-        self.last_error = error
 
+# PID effort
         effort = self.kp * error + self.ki * self.integral + self.kd * self.filtered_derivative
-        effort = -effort
+        effort = -effort  # Reverse if needed for motor direction
 
-        # Apply deadband
+# Apply deadband
         if abs(effort) < self.deadband:
             effort = 0.0
 
-        # Clamp effort
+# Clamp final effort
         effort = max(min(effort, self.max_effort), -self.max_effort)
 
         # Safety cutoff
@@ -99,7 +103,8 @@ class SimpleBalanceBot:
         self.left_pub.publish(effort)
         self.right_pub.publish(effort)
 
-        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, Effort: {effort:.2f}, P: {self.kp * error:.2f}, D: {self.kd * derivative:.2f}, I: {self.ki * self.integral:.2f}")
+        rospy.loginfo_throttle(1, f"Pitch: {math.degrees(self.pitch):.2f}°, Effort: {effort:.2f},  Gyro Y: {gyro_y:.2f}, P: {self.kp * error:.2f}, D: {self.kd * derivative:.2f}, I: {self.ki * self.integral:.2f}")
+        
 
     def run(self):
         rospy.spin()
