@@ -11,4 +11,14 @@
 
    <node name="simple_balance_controller" pkg="balance_bot" type="pid_balance.py" output="screen" /> 
 
+<node pkg="balance_bot" type="plot_balance_pid.py" name="plot_balance_pid" output="screen">
+        <!-- optional overrides -->
+        <param name="buffer_seconds" value="12.0"/>
+        <param name="update_hz" value="15.0"/>
+        <!-- topics if different -->
+        <param name="imu_topic" value="/balance_bot/imu_data"/>
+        <param name="left_topic" value="/left_wheel_effort_controller/command"/>
+        <param name="right_topic" value="/right_wheel_effort_controller/command"/>
+    </node>
+
 </launch>
