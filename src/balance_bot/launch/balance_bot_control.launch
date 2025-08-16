@@ -9,7 +9,7 @@
           output="screen"
           args="joint_state_controller left_wheel_effort_controller right_wheel_effort_controller"/>
 
-   <node name="simple_balance_controller" pkg="balance_bot" type="pid_balance.py" output="screen" /> 
+   <node name="two_loop_balance_controller" pkg="balance_bot" type="pid_balance.py" output="screen" /> 
 
 <node pkg="balance_bot" type="plot_balance_pid.py" name="plot_balance_pid" output="screen">
         <!-- optional overrides -->
