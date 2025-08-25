@@ -23,18 +23,18 @@ class TwoLoopBalanceBot:
         self.max_angle_i = rospy.get_param("~max_angle_i", 1.0)
 
         # === Inner loop (rate → motor effort) ===
-        self.kpr = rospy.get_param("~kpr", 3.0)   # P gain for rate
+        self.kpr = rospy.get_param("~kpr", 2.0)   # P gain for rate
         self.kir = rospy.get_param("~kir", 0.0)  # I gain for rate
-        self.kdr = rospy.get_param("~kdr", 0.1)  # D gain for rate
+        self.kdr = rospy.get_param("~kdr", 0.05) # D gain for rate
         self.idr = 0.0  # rate loop integral
         self.last_rate_error = 0.0
-        self.max_rate_i = rospy.get_param("~max_rate_i", 1.0)
+        self.max_rate_i = rospy.get_param("~max_rate_i", 0.5)
 
         # === Limits & filters ===
-        self.max_effort = rospy.get_param("~max_effort", 10.0)
-        self.deadband = rospy.get_param("~deadband", 0.05)
+        self.max_effort = rospy.get_param("~max_effort", 5.0)
+        self.deadband = rospy.get_param("~deadband", 0.01)
         self.max_dt = rospy.get_param("~max_dt", 0.02)
-        self.max_slew_per_sec = rospy.get_param("~max_slew_per_sec", 100.0)
+        self.max_slew_per_sec = rospy.get_param("~max_slew_per_sec", 20.0)
         self.last_effort = 0.0
 
         # === Gyro bias calibration ===
@@ -111,7 +111,7 @@ class TwoLoopBalanceBot:
         self.ida = max(min(self.ida, self.max_angle_i), -self.max_angle_i)
         angle_derivative = (angle_error - self.last_angle_error) / dt
         self.last_angle_error = angle_error
-        target_rate = self.kpa * angle_error + self.kia * self.ida + self.kda * angle_derivative
+        target_rate = -(self.kpa * angle_error + self.kia * self.ida + self.kda * angle_derivative)
 
         # === Inner loop: Rate control ===
         rate_error = target_rate - gyro_y
